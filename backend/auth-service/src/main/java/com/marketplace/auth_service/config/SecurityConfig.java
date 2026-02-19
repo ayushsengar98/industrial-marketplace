@@ -1,61 +1,60 @@
 package com.marketplace.auth_service.config;
 
-import com.marketplace.auth_service.service.JwtService;
-import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.*;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
 @Configuration
+@EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtService jwtService;
+    private final JwtAuthFilter jwtAuthFilter;
 
-    public SecurityConfig(JwtService jwtService){
-        this.jwtService=jwtService;
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter){
+        this.jwtAuthFilter = jwtAuthFilter;
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,
-                                           JwtAuthFilter jwtAuthFilter) throws Exception{
-
+    @Order(1)
+    public SecurityFilterChain h2ConsoleFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf->csrf.disable())
+            .securityMatcher(AntPathRequestMatcher.antMatcher("/h2-console/**"))
+            .csrf(csrf -> csrf.disable())
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-
-            .sessionManagement(s->
-                    s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-           .authorizeHttpRequests(auth->auth
-    .requestMatchers("/auth/**").permitAll()
-    .requestMatchers("/h2-console/**").permitAll()
-
-    .requestMatchers("/api/user/**").hasAnyRole("USER","ADMIN","VENDOR")
-
-    .requestMatchers("/api/vendor/apply").hasRole("USER")
-    .requestMatchers("/api/vendor/pending").hasRole("ADMIN")
-    .requestMatchers("/api/vendor/approve/**").hasRole("ADMIN")
-    .requestMatchers("/api/vendor/reject/**").hasRole("ADMIN")
-
-    .requestMatchers("/api/admin/**").hasRole("ADMIN")
-
-    .anyRequest().authenticated()
-)
-            .addFilterBefore(jwtAuthFilter,
-                    UsernamePasswordAuthenticationFilter.class)
-
-            .formLogin(f->f.disable())
-            .httpBasic(b->b.disable());
-
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        
         return http.build();
     }
 
     @Bean
-    public JwtAuthFilter jwtAuthFilter(){
-        return new JwtAuthFilter(jwtService);
+    @Order(0)
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout").permitAll()
+                .requestMatchers(HttpMethod.GET, "/internal/users").permitAll()
+                .requestMatchers(HttpMethod.PUT, "/internal/users/**").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .formLogin(form -> form.disable())
+            .httpBasic(basic -> basic.disable());
+
+        return http.build();
     }
 
     @Bean

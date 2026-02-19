@@ -6,14 +6,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
+import java.util.ArrayList;
 
+@Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -23,48 +23,39 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/auth/") || 
+               path.startsWith("/internal/") ||
+               path.startsWith("/h2-console/") ||
+               path.startsWith("/actuator/");
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest req,
                                     HttpServletResponse res,
                                     FilterChain chain)
             throws ServletException, IOException {
 
-        String path = req.getServletPath();
+        String header = req.getHeader("Authorization");
 
-        if (path.startsWith("/auth/")) {
+        if (header == null || !header.startsWith("Bearer ")) {
             chain.doFilter(req, res);
             return;
         }
 
-        String header = req.getHeader("Authorization");
+        String token = header.substring(7);
 
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        if (jwtService.validateToken(token)) {
+            String email = jwtService.extractEmail(token);
+            
+            UsernamePasswordAuthenticationToken auth = 
+                new UsernamePasswordAuthenticationToken(email, null, new ArrayList<>());
 
-            if (jwtService.validateToken(token)) {
-                String email = jwtService.extractEmail(token);
-                String role = jwtService.extractRole(token);
-
-                // Normalize role to avoid mismatches with hasRole("ADMIN") / hasAuthority("ROLE_ADMIN")
-                SimpleGrantedAuthority authority = null;
-                if (role != null) {
-                    String normalized = role.trim().toUpperCase(Locale.ROOT);
-                    if (normalized.startsWith("ROLE_")) {
-                        authority = new SimpleGrantedAuthority(normalized);
-                    } else {
-                        authority = new SimpleGrantedAuthority("ROLE_" + normalized);
-                    }
-                }
-
-                var auth = new UsernamePasswordAuthenticationToken(
-                        email,
-                        null,
-                        authority == null ? List.of() : List.of(authority)
-                );
-
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            }
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            chain.doFilter(req, res);
+        } else {
+            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
         }
-
-        chain.doFilter(req, res);
     }
 }

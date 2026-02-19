@@ -20,12 +20,12 @@ public class VendorController {
     private final VendorService service;
 
     public VendorController(VendorService service){
-        this.service=service;
+        this.service = service;
     }
 
     @PostMapping("/apply")
     public Vendor apply(@RequestBody Vendor v, Principal p){
-        return service.apply(v,p.getName());
+        return service.apply(v, p.getName());
     }
 
     @GetMapping("/status")
@@ -37,9 +37,29 @@ public class VendorController {
     public List<Vendor> pending(){
         return service.pending();
     }
+    
+    @GetMapping("/approved")
+    public List<Vendor> approved(){
+        return service.getApprovedVendors();
+    }
+    
+    @GetMapping("/rejected")
+    public List<Vendor> rejected(){
+        return service.getRejectedVendors();
+    }
+    
+    @GetMapping("/count/pending")
+    public long pendingCount(){
+        return service.getPendingCount();
+    }
 
     @PostMapping("/approve/{id}")
     public Vendor approve(@PathVariable Long id){
         return service.approve(id);
+    }
+
+    @PostMapping("/reject/{id}")
+    public Vendor reject(@PathVariable Long id){
+        return service.reject(id);
     }
 }

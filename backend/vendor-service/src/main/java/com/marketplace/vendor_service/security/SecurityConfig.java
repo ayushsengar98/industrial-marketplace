@@ -9,11 +9,11 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableWebSecurity  // Add this annotation
+@EnableWebSecurity
 public class SecurityConfig {
 
     private final JwtService jwt;
-    private final JwtAuthFilter jwtAuthFilter;  // Inject directly
+    private final JwtAuthFilter jwtAuthFilter;
 
     public SecurityConfig(JwtService jwt, JwtAuthFilter jwtAuthFilter){
         this.jwt = jwt;
@@ -28,14 +28,22 @@ public class SecurityConfig {
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints
+                .requestMatchers("/h2-console/**").permitAll()
+                
+                // USER can apply and check status
                 .requestMatchers(HttpMethod.POST, "/api/vendor/apply").hasRole("USER")
-                .requestMatchers("/api/vendor/pending").hasRole("ADMIN")
-                .requestMatchers("/api/vendor/approve/**").hasRole("ADMIN")
-                .requestMatchers("/h2-console/**").permitAll()  // For H2 console
+                .requestMatchers(HttpMethod.GET, "/api/vendor/status").hasAnyRole("USER", "VENDOR")
+                
+                // ADMIN only endpoints
+                .requestMatchers(HttpMethod.GET, "/api/vendor/pending").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/vendor/approve/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/vendor/reject/**").hasRole("ADMIN")  // 🔴 ADD THIS
+                
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-            .headers(headers -> headers.frameOptions(frame -> frame.disable())); // For H2 console
+            .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
         return http.build();
     }

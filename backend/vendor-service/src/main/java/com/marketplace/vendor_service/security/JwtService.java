@@ -2,20 +2,20 @@ package com.marketplace.vendor_service.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
 import java.security.Key;
 import java.util.Date;
 
 @Service
 public class JwtService {
 
-    private static final String SECRET =
-            "supersecretkeysupersecretkeysupersecretkey";
-    
-    private static final long EXPIRATION_TIME = 86400000; // 24 hours
+    @Value("${jwt.secret:supersecretkeysupersecretkeysupersecretkey}")
+    private String secret;
 
     private Key key(){
-        return Keys.hmacShaKeyFor(SECRET.getBytes());
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     public Claims parse(String token){
